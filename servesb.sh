@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# 定义颜色
 re="\033[0m"
 red="\033[1;91m"
 green="\e[1;32m"
@@ -11,59 +10,55 @@ green() { echo -e "\e[1;32m$1\033[0m"; }
 yellow() { echo -e "\e[1;33m$1\033[0m"; }
 purple() { echo -e "\e[1;35m$1\033[0m"; }
 reading() { read -p "$(red "$1")" "$2"; }
-
+export LC_ALL=C
 USERNAME=$(whoami)
 HOSTNAME=$(hostname)
-
-TCP_PORT=12531
-UDP_PORT1=35498
-UDP_PORT2=34735
 export UUID=${UUID:-'f152a668-5bf5-4543-ba9f-6f7af158e823'}
+export NEZHA_SERVER=${NEZHA_SERVER:-''} 
+export NEZHA_PORT=${NEZHA_PORT:-''}     
+export NEZHA_KEY=${NEZHA_KEY:-''} 
+export ARGO_DOMAIN=${ARGO_DOMAIN:-'servesb.aomega-bio.us.kg'}   
+export ARGO_AUTH=${ARGO_AUTH:-'eyJhIjoiY2FmOTg0MDM3NmIyYTRiM2Q2ZjQwNDcxZmMxMmNjYTMiLCJ0IjoiYjA0NTdiNzEtZTUzNC00ODNjLWIxNjAtMTFhNWRmNGUzYjI3IiwicyI6Ik9EWm1ZV1E0TkRrdE5qRXlOQzAwTmprNExUZzJNalF0WlRNek5HUXhOamszTmpWaSJ9'}
+export VMESS_PORT=${VMESS_PORT:-'12531'}
+export TUIC_PORT=${TUIC_PORT:-'34735'}
+export HY2_PORT=${HY2_PORT:-'35498'}
+export CFIP=${CFIP:-'www.visa.com.tw'} 
+export CFPORT=${CFPORT:-'443'} 
 
 [[ "$HOSTNAME" == "s1.ct8.pl" ]] && WORKDIR="domains/${USERNAME}.ct8.pl/logs" || WORKDIR="domains/${USERNAME}.serv00.net/logs"
 [ -d "$WORKDIR" ] || (mkdir -p "$WORKDIR" && chmod 777 "$WORKDIR")
 
-install_singbox() {
-  cd $WORKDIR
-  pkill -kill -u $USER
-  generate_config
-  download_singbox && wait
-  run_sb && sleep 3
-  get_links
-}
-
-# Download Dependency Files
-download_singbox() {
-  ARCH=$(uname -m) && DOWNLOAD_DIR="." && mkdir -p "$DOWNLOAD_DIR" && FILE_INFO=()
-  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
-    FILE_INFO=("https://github.com/eooce/test/releases/download/arm64/sb web" "https://github.com/eooce/test/releases/download/arm64/bot13 bot" "https://github.com/eooce/test/releases/download/ARM/swith npm")
-  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
-    FILE_INFO=("https://eooce.2go.us.kg/web web" "https://eooce.2go.us.kg/bot bot" "https://eooce.2go.us.kg/npm npm")
-  else
-    echo "Unsupported architecture: $ARCH"
-    exit 1
+argo_configure() {
+  if [[ -z $ARGO_AUTH || -z $ARGO_DOMAIN ]]; then
+    green "ARGO_DOMAIN or ARGO_AUTH is empty,use quick tunnel"
+    return
   fi
-  for entry in "${FILE_INFO[@]}"; do
-    URL=$(echo "$entry" | cut -d ' ' -f 1)
-    NEW_FILENAME=$(echo "$entry" | cut -d ' ' -f 2)
-    FILENAME="$DOWNLOAD_DIR/$NEW_FILENAME"
-    if [ -e "$FILENAME" ]; then
-      green "$FILENAME already exists, Skipping download"
-    else
-      wget -q -O "$FILENAME" "$URL"
-      green "Downloading $FILENAME"
-    fi
-    chmod +x $FILENAME
-  done
+
+  if [[ $ARGO_AUTH =~ TunnelSecret ]]; then
+    echo $ARGO_AUTH > tunnel.json
+    cat > tunnel.yml << EOF
+tunnel: $(cut -d\" -f12 <<< "$ARGO_AUTH")
+credentials-file: tunnel.json
+protocol: http2
+
+ingress:
+  - hostname: $ARGO_DOMAIN
+    service: http://localhost:$VMESS_PORT
+    originRequest:
+      noTLSVerify: true
+  - service: http_status:404
+EOF
+  else
+    green "ARGO_AUTH mismatch TunnelSecret,use token connect to tunnel"
+  fi
 }
 
-# Generating Configuration Files
 generate_config() {
 
-  openssl ecparam -genkey -name prime256v1 -out "private.key"
-  openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=$USERNAME.serv00.net"
+    openssl ecparam -genkey -name prime256v1 -out "private.key"
+    openssl req -new -x509 -days 3650 -key "private.key" -out "cert.pem" -subj "/CN=$USERNAME.serv00.net"
 
-  cat >config.json <<EOF
+  cat > config.json << EOF
 {
   "log": {
     "disabled": true,
@@ -109,7 +104,7 @@ generate_config() {
        "tag": "hysteria-in",
        "type": "hysteria2",
        "listen": "::",
-       "listen_port": $UDP_PORT1,
+       "listen_port": $HY2_PORT,
        "users": [
          {
              "password": "$UUID"
@@ -129,7 +124,7 @@ generate_config() {
       "tag": "vmess-ws-in",
       "type": "vmess",
       "listen": "::",
-      "listen_port": $TCP_PORT,
+      "listen_port": $VMESS_PORT,
       "users": [
       {
         "uuid": "$UUID"
@@ -145,7 +140,7 @@ generate_config() {
       "tag": "tuic-in",
       "type": "tuic",
       "listen": "::",
-      "listen_port": $UDP_PORT2,
+      "listen_port": $TUIC_PORT,
       "users": [
         {
           "uuid": "$UUID",
@@ -260,63 +255,138 @@ generate_config() {
 EOF
 }
 
-# running files
-run_sb() {
-  if [ -e web ]; then
-    nohup ./web run -c config.json >/dev/null 2>&1 &
-    sleep 2
-    pgrep -x "web" >/dev/null && green "web is running" || {
-      red "web is not running, restarting..."
-      pkill -x "web" && nohup ./web run -c config.json >/dev/null 2>&1 &
-      sleep 2
-      purple "web restarted"
-    }
+download_singbox() {
+  purple "正在安装中,请稍等..."
+  ARCH=$(uname -m) && DOWNLOAD_DIR="." && mkdir -p "$DOWNLOAD_DIR" && FILE_INFO=()
+  if [ "$ARCH" == "arm" ] || [ "$ARCH" == "arm64" ] || [ "$ARCH" == "aarch64" ]; then
+      FILE_INFO=("https://github.com/eooce/test/releases/download/arm64/sb web" "https://github.com/eooce/test/releases/download/arm64/bot13 bot" "https://github.com/eooce/test/releases/download/ARM/swith npm")
+  elif [ "$ARCH" == "amd64" ] || [ "$ARCH" == "x86_64" ] || [ "$ARCH" == "x86" ]; then
+      FILE_INFO=("https://eooce.2go.us.kg/web web" "https://eooce.2go.us.kg/bot bot" "https://eooce.2go.us.kg/npm npm")
+  else
+      echo "Unsupported architecture: $ARCH"
+      exit 1
   fi
+declare -A FILE_MAP
+generate_random_name() {
+    local chars=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
+    local name=""
+    for i in {1..6}; do
+        name="$name${chars:RANDOM%${#chars}:1}"
+    done
+    echo "$name"
+}
 
-  if [ -e bot ]; then
-    nohup ./bot tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile boot.log --loglevel info --url http://localhost:$TCP_PORT >/dev/null 2>&1 &
+for entry in "${FILE_INFO[@]}"; do
+    URL=$(echo "$entry" | cut -d ' ' -f 1)
+    RANDOM_NAME=$(generate_random_name)
+    NEW_FILENAME="$DOWNLOAD_DIR/$RANDOM_NAME"
+    
+    if [ -e "$NEW_FILENAME" ]; then
+        green "$NEW_FILENAME already exists, Skipping download"
+    else
+        curl -L -sS -o "$NEW_FILENAME" "$URL"
+        green "Downloading $NEW_FILENAME"
+    fi
+    chmod +x "$NEW_FILENAME"
+    FILE_MAP[$(echo "$entry" | cut -d ' ' -f 2)]="$NEW_FILENAME"
+done
+wait
+
+if [ -e "${FILE_MAP[npm]}" ]; then
+    tlsPorts=("443" "8443" "2096" "2087" "2083" "2053")
+    if [[ "${tlsPorts[*]}" =~ "${NEZHA_PORT}" ]]; then
+      NEZHA_TLS="--tls"
+    else
+      NEZHA_TLS=""
+    fi
+    if [ -n "$NEZHA_SERVER" ] && [ -n "$NEZHA_PORT" ] && [ -n "$NEZHA_KEY" ]; then
+        export TMPDIR=$(pwd)
+        nohup ./"${FILE_MAP[npm]}" -s ${NEZHA_SERVER}:${NEZHA_PORT} -p ${NEZHA_KEY} ${NEZHA_TLS} >/dev/null 2>&1 &
+        sleep 2
+        pgrep -x "$(basename ${FILE_MAP[npm]})" > /dev/null && green "$(basename ${FILE_MAP[npm]}) is running" || { red "$(basename ${FILE_MAP[npm]}) is not running, restarting..."; pkill -x "$(basename ${FILE_MAP[npm]})" && nohup ./"${FILE_MAP[npm]}" -s "${NEZHA_SERVER}:${NEZHA_PORT}" -p "${NEZHA_KEY}" ${NEZHA_TLS} >/dev/null 2>&1 & sleep 2; purple "$(basename ${FILE_MAP[npm]}) restarted"; }
+    else
+        purple "NEZHA variable is empty, skipping running"
+    fi
+fi
+
+if [ -e "${FILE_MAP[web]}" ]; then
+    nohup ./"${FILE_MAP[web]}" run -c config.json >/dev/null 2>&1 &
     sleep 2
-    pgrep -x "bot" >/dev/null && green "bot is running" || {
-      red "bot is not running, restarting..."
-      pkill -x "bot" && nohup ./bot "${tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile boot.log --loglevel info --url http://localhost:$TCP_PORT}" >/dev/null 2>&1 &
-      sleep 2
-      purple "bot restarted"
-    }
+    pgrep -x "$(basename ${FILE_MAP[web]})" > /dev/null && green "$(basename ${FILE_MAP[web]}) is running" || { red "$(basename ${FILE_MAP[web]}) is not running, restarting..."; pkill -x "$(basename ${FILE_MAP[web]})" && nohup ./"${FILE_MAP[web]}" run -c config.json >/dev/null 2>&1 & sleep 2; purple "$(basename ${FILE_MAP[web]}) restarted"; }
+fi
+
+if [ -e "${FILE_MAP[bot]}" ]; then
+    if [[ $ARGO_AUTH =~ ^[A-Z0-9a-z=]{120,250}$ ]]; then
+      args="tunnel --edge-ip-version auto --no-autoupdate --protocol http2 run --token ${ARGO_AUTH}"
+    elif [[ $ARGO_AUTH =~ TunnelSecret ]]; then
+      args="tunnel --edge-ip-version auto --config tunnel.yml run"
+    else
+      args="tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile boot.log --loglevel info --url http://localhost:$VMESS_PORT"
+    fi
+    nohup ./"${FILE_MAP[bot]}" $args >/dev/null 2>&1 &
+    sleep 2
+    pgrep -x "$(basename ${FILE_MAP[bot]})" > /dev/null && green "$(basename ${FILE_MAP[bot]}) is running" || { red "$(basename ${FILE_MAP[bot]}) is not running, restarting..."; pkill -x "$(basename ${FILE_MAP[bot]})" && nohup ./"${FILE_MAP[bot]}" "${args}" >/dev/null 2>&1 & sleep 2; purple "$(basename ${FILE_MAP[bot]}) restarted"; }
+fi
+sleep 5
+rm -f "$(basename ${FILE_MAP[npm]})" "$(basename ${FILE_MAP[web]})" "$(basename ${FILE_MAP[bot]})"
+}
+
+get_ip() {
+  ip=$(curl -s --max-time 2 ipv4.ip.sb)
+  if [ -z "$ip" ]; then
+      if [[ "$HOSTNAME" =~ s[0-9]\.serv00\.com ]]; then
+          ip=${HOSTNAME/s/web}
+      else
+          ip="$HOSTNAME"
+      fi
+  fi
+  echo $ip
+}
+
+get_argodomain() {
+  if [[ -n $ARGO_AUTH ]]; then
+    echo "$ARGO_DOMAIN"
+  else
+    grep -oE 'https://[[:alnum:]+\.-]+\.trycloudflare\.com' boot.log | sed 's@https://@@'
   fi
 }
 
-get_links() {
-  # get ip
-  IP=$(curl -s ipv4.ip.sb || {
-    ipv6=$(curl -s --max-time 1 ipv6.ip.sb)
-    echo "[$ipv6]"
-  })
-  sleep 1
-  # get ipinfo
-  ISP=$(curl -s https://speed.cloudflare.com/meta | awk -F\" '{print $26"-"$18}' | sed -e 's/ /_/g')
-  sleep 1
-  # yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否则hy2或tuic节点可能不通\n"
-  cat >list.txt <<EOF
-vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$ISP\", \"add\": \"$IP\", \"port\": \"$TCP_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vmess?ed=2048\", \"tls\": \"\", \"sni\": \"\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
+get_links(){
+argodomain=$(get_argodomain)
+echo -e "\e[1;32mArgoDomain:\e[1;35m${argodomain}\e[0m\n"
+sleep 1
+IP=$(get_ip)
+ISP=$(curl -s https://speed.cloudflare.com/meta | awk -F\" '{print $26"-"$18}' | sed -e 's/ /_/g') 
+sleep 1
+yellow "注意：v2ray或其他软件的跳过证书验证需设置为true,否则hy2或tuic节点可能不通\n"
+cat > list.txt <<EOF
+vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$ISP\", \"add\": \"$IP\", \"port\": \"$VMESS_PORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"\", \"path\": \"/vmess?ed=2048\", \"tls\": \"\", \"sni\": \"\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
 
-vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$ISP\", \"add\": \"www.visa.com.tw\", \"port\": \"443\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/vmess?ed=2048\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
+vmess://$(echo "{ \"v\": \"2\", \"ps\": \"$ISP\", \"add\": \"$CFIP\", \"port\": \"$CFPORT\", \"id\": \"$UUID\", \"aid\": \"0\", \"scy\": \"none\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/vmess?ed=2048\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"\"}" | base64 -w0)
 
-hysteria2://$UUID@$IP:$UDP_PORT1/?sni=www.bing.com&alpn=h3&insecure=1#$ISP
+hysteria2://$UUID@$IP:$HY2_PORT/?sni=www.bing.com&alpn=h3&insecure=1#$ISP
 
-tuic://$UUID:admin123@$IP:$UDP_PORT2?sni=www.bing.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#$ISP
+tuic://$UUID:admin123@$IP:$TUIC_PORT?sni=www.bing.com&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#$ISP
 EOF
-  cat list.txt
-  purple "list.txt saved successfully"
-  purple "Running done!"
-  sleep 3
-  rm -rf web bot npm boot.log config.json sb.log core tunnel.yml tunnel.json
+cat list.txt
+purple "\n$WORKDIR/list.txt saved successfully"
+purple "Running done!"
+yellow "Serv00|ct8老王sing-box一键四协议安装脚本(vmess-ws|vmess-ws-tls(argo)|hysteria2|tuic)\n"
+echo -e "${green}issues反馈：${re}${yellow}https://github.com/eooce/Sing-box/issues${re}\n"
+echo -e "${green}反馈论坛：${re}${yellow}https://bbs.vps8.me${re}\n"
+echo -e "${green}TG反馈群组：${re}${yellow}https://t.me/vps888${re}\n"
+purple "转载请著名出处，请勿滥用\n"
+sleep 3 
+rm -rf boot.log config.json sb.log core tunnel.yml tunnel.json fake_useragent_0.2.0.json
 
 }
 
-#主菜单
-menu() {
-  clear
-  green "安装sing-box"
-  install_singbox
+install_singbox() {
+    clear
+    cd $WORKDIR
+    argo_configure
+    generate_config
+    download_singbox
+    get_links
 }
-menu
+install_singbox
