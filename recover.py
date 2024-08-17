@@ -8,7 +8,7 @@ def send_telegram_message(token, chat_id, message):
     telegram_payload = {
         "chat_id": chat_id,
         "text": message,
-        "reply_markup": '{"inline_keyboard":[[{"text":"问题反馈❓","url":"https://t.me/yxjsjl"}]]}'
+        "reply_markup": '{"inline_keyboard":[[{"text":"问题反馈❓","url":"https://t.me/amosgantian"}]]}'
     }
 
     response = requests.post(telegram_url, json=telegram_payload)
@@ -38,7 +38,7 @@ except json.JSONDecodeError:
 summary_message = "serv00-singbox 恢复操作结果：\n"
 
 # 默认恢复命令
-default_restore_command = "./yixiu.sh"
+default_restore_command = "./servesb.sh"
 
 # 遍历服务器列表并执行恢复操作
 for server in servers:
