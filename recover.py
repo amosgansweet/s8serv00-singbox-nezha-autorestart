@@ -24,7 +24,7 @@ def send_telegram_message(token, chat_id, message):
 
 # 从环境变量中获取密钥
 accounts_json = os.getenv('ACCOUNTS_JSON')
-telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+telegram_token = os.getenv('TELEGRAM_TOKEN')
 telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
 
 # 检查环境变量是否存在
