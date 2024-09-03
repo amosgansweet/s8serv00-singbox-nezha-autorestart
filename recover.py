@@ -8,7 +8,9 @@ def send_telegram_message(token, chat_id, message):
     telegram_payload = {
         "chat_id": chat_id,
         "text": message,
-        "reply_markup": '{"inline_keyboard":[[{"text":"问题反馈❓","url":"https://t.me/amosgantian"}]]}'
+        "reply_markup": {
+            "inline_keyboard": [[{"text": "问题反馈❓", "url": "https://t.me/amosgantian"}]]
+        }
     }
 
     response = requests.post(telegram_url, json=telegram_payload)
@@ -25,6 +27,10 @@ accounts_json = os.getenv('ACCOUNTS_JSON')
 telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
 telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
 
+# 检查环境变量是否存在
+if not all([telegram_token, telegram_chat_id, accounts_json]):
+    raise ValueError("Telegram token, chat ID, or accounts JSON is not set in environment variables.")
+
 # 检查并解析 JSON 字符串
 try:
     servers = json.loads(accounts_json)
@@ -38,9 +44,10 @@ except json.JSONDecodeError:
 summary_message = "serv00-singbox 恢复操作结果：\n"
 
 # 默认恢复命令
-default_restore_command =[ "ps aux | grep -v grep | grep run > /dev/null || nohup $HOME/sb/servesb.sh >/dev/null 2>&1 &",
-                           "ps aux | grep -v grep | grep nezha-agent > /dev/null || nohup $HOME/nezha-agent/nezha-agent.sh >/dev/null 2>&1 &"
-                         ]
+default_restore_command = [
+    "ps aux | grep -v grep | grep run > /dev/null || $HOME/sb/servesb.sh >/dev/null 2>&1 &",
+    "ps aux | grep -v grep | grep nezha-agent > /dev/null || nohup $HOME/nezha-agent/nezha-agent.sh >/dev/null 2>&1 &"
+]
 
 # 遍历服务器列表并执行恢复操作
 for server in servers:
@@ -52,11 +59,12 @@ for server in servers:
     cron_command_str = " && ".join(cron_command) if isinstance(cron_command, list) else cron_command
     print(f"连接到 {host}...")
 
-    # 执行恢复命令（这里假设使用 SSH 连接和密码认证）
-    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command}'"
+    # 执行恢复命令（使用 SSH 连接和密码认证）
+    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command_str}'"
     try:
         output = subprocess.check_output(restore_command, shell=True, stderr=subprocess.STDOUT)
-        summary_message += f"\n成功恢复 {host} 上的 singbox和nezha 服务：\n{output.decode('utf-8')}"
+        output_summary = output.decode('utf-8')[:1000]  # 假设截断至1000字符
+        summary_message += f"\n成功恢复 {host} 上的 singbox和nezha 服务：\n{output_summary}"
     except subprocess.CalledProcessError as e:
         summary_message += f"\n无法恢复 {host} 上的 singbox和nezha 服务：\n{e.output.decode('utf-8')}"
 
