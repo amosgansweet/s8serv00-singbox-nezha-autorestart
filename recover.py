@@ -46,11 +46,11 @@ except json.JSONDecodeError:
     exit(1)
 
 # 初始化汇总消息
-summary_message = "serv00-singbox 恢复操作结果：\n"
+summary_message = "serv00-singbox-nezha 恢复操作结果：\n"
 
 # 默认恢复命令
 default_restore_command = [
-    "ps aux | grep -v grep | grep run > /dev/null || nohup $HOME/sb/servesb.sh >/dev/null 2>&1 &",
+    "ps aux | grep -v grep | grep run > /dev/null || $HOME/sb/servesb.sh >/dev/null 2>&1 &",
     "ps aux | grep -v grep | grep nezha-agent > /dev/null || nohup $HOME/nezha-agent/nezha-agent.sh >/dev/null 2>&1 &"
 ]
 
