@@ -1,8 +1,8 @@
-name: 恢复serv00-singbox服务并发送Telegram消息
+name: 恢复serv00-singbox and nezha服务并发送Telegram消息
 
 on:
   schedule:
-    - cron: '0 0 */2 * *'  # 每2天的00:00执行一次
+    - cron: '0 5 */1 * *'  # 每2天的00:00执行一次
   workflow_dispatch:
 
 jobs:
