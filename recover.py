@@ -24,7 +24,7 @@ def send_telegram_message(token, chat_id, message):
 
 # 从环境变量中获取密钥
 accounts_json = os.getenv('ACCOUNTS_JSON')
-telegram_token = os.getenv('TELEGRAM_TOKEN')  # 使用正确的变量名称
+telegram_token = os.getenv('TELEGRAM_TOKEN')
 telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
 
 # 打印环境变量的值进行检查
@@ -68,8 +68,7 @@ for server in servers:
     restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command_str}'"
     try:
         output = subprocess.check_output(restore_command, shell=True, stderr=subprocess.STDOUT)
-        
-        summary_message += f"\n成功恢复 {host} 上的 singbox和nezha 服务：\n{output_summary}"
+        summary_message += f"\n成功恢复 {host} 上的 singbox和nezha 服务：\n{output.decode('utf-8')}"
     except subprocess.CalledProcessError as e:
         summary_message += f"\n无法恢复 {host} 上的 singbox和nezha 服务：\n{e.output.decode('utf-8')}"
 
