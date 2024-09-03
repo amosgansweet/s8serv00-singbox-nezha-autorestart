@@ -49,16 +49,16 @@ for server in servers:
     username = server['username']
     password = server['password']
     cron_command = server.get('cron', default_restore_command)
-
+    cron_command_str = " && ".join(cron_command) if isinstance(cron_command, list) else cron_command
     print(f"连接到 {host}...")
 
     # 执行恢复命令（这里假设使用 SSH 连接和密码认证）
     restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command}'"
     try:
         output = subprocess.check_output(restore_command, shell=True, stderr=subprocess.STDOUT)
-        summary_message += f"\n成功恢复 {host} 上的 singbox 服务：\n{output.decode('utf-8')}"
+        summary_message += f"\n成功恢复 {host} 上的 singbox和nezha 服务：\n{output.decode('utf-8')}"
     except subprocess.CalledProcessError as e:
-        summary_message += f"\n无法恢复 {host} 上的 singbox 服务：\n{e.output.decode('utf-8')}"
+        summary_message += f"\n无法恢复 {host} 上的 singbox和nezha 服务：\n{e.output.decode('utf-8')}"
 
 # 发送汇总消息到 Telegram
 send_telegram_message(telegram_token, telegram_chat_id, summary_message)
