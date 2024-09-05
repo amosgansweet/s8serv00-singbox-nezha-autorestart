@@ -2,7 +2,7 @@ name: 恢复serv00-singbox and nezha服务并发送Telegram消息
 
 on:
   schedule:
-    - cron: '10 */3 * * *'  # 每3小时的05分执行一次
+    - cron: '10 */3 * * *'  # 每3小时的10分执行一次
   workflow_dispatch:
 
 jobs:
