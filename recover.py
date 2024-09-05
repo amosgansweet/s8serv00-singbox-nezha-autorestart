@@ -50,7 +50,7 @@ except json.JSONDecodeError:
 summary_message = "serv00-singbox-nezha 恢复操作结果：\n"
 
 # 默认恢复命令
-default_restore_command = ("(ps aux | grep -v grep | grep run > /dev/null ) || (ps aux | grep -v grep | grep nezha-agent > /dev/null) || $HOME/sb/rt.sh >/dev/null 2>&1 &")
+default_restore_command = "(ps aux | grep -v grep | grep run > /dev/null ) || (ps aux | grep -v grep | grep nezha-agent > /dev/null) || $HOME/sb/rt.sh >/dev/null 2>&1 &"
 
 # 遍历服务器列表并执行恢复操作
 for server in servers:
@@ -66,30 +66,32 @@ for server in servers:
     if isinstance(cron_commands, str):
         cron_commands = [cron_commands]
 
+    # 拼接 cron 命令
+    cron_commands_str = ' && '.join(cron_commands)
+
     # 执行恢复命令（假设使用 SSH 连接和密码认证）
-   
-        restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_commands}'"
-        print(f"执行命令: {restore_command}")  # 添加日志
-        try:
-            result = subprocess.run(restore_command, shell=True, capture_output=True, text=True, timeout=30)
-            if result.returncode == 0:
-                # 检查是否有后台进程启动
-                time.sleep(5)  # 等待后台进程启动
-                verify_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} 'ps aux | grep -v grep | grep {command.split()[0]}'"
-                verify_result = subprocess.run(verify_command, shell=True, capture_output=True, text=True)
-                if verify_result.returncode == 0:
-                    summary_message += f"\n成功恢复 {host} 上的singbox and nezha服务：\n{verify_result.stdout}"
-                else:
-                    summary_message += f"\n后台进程可能未启动 {host} 上的singbox and nezha服务。"
+    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_commands_str}'"
+    print(f"执行命令: {restore_command}")  # 添加日志
+    try:
+        result = subprocess.run(restore_command, shell=True, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            # 检查是否有后台进程启动
+            time.sleep(5)  # 等待后台进程启动
+            verify_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} 'ps aux | grep -v grep | grep {cron_commands[0].split()[0]}'"
+            verify_result = subprocess.run(verify_command, shell=True, capture_output=True, text=True)
+            if verify_result.returncode == 0:
+                summary_message += f"\n成功恢复 {host} 上的singbox and nezha服务：\n{verify_result.stdout}"
             else:
-                summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{result.stderr}"
-        except subprocess.TimeoutExpired as e:
-            print(f"命令执行超时: {restore_command}")  # 处理超时
-            summary_message += f"\n命令执行超时 {host} 上的singbox and nezha服务。"
-        except Exception as e:
-            error_message = str(e)
-            print(f"未知错误: {error_message}")  # 捕获其他异常
-            summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{error_message}"
+                summary_message += f"\n后台进程可能未启动 {host} 上的singbox and nezha服务。"
+        else:
+            summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{result.stderr}"
+    except subprocess.TimeoutExpired:
+        print(f"命令执行超时: {restore_command}")  # 处理超时
+        summary_message += f"\n命令执行超时 {host} 上的singbox and nezha服务。"
+    except Exception as e:
+        error_message = str(e)
+        print(f"未知错误: {error_message}")  # 捕获其他异常
+        summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{error_message}"
 
 # 发送汇总消息到 Telegram
 send_telegram_message(telegram_token, telegram_chat_id, summary_message)
