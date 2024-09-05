@@ -71,10 +71,10 @@ for server in servers:
         restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_commands}'"
         print(f"执行命令: {restore_command}")  # 添加日志
         try:
-            result = subprocess.run(restore_command, shell=True, capture_output=True, text=True, timeout=120)
+            result = subprocess.run(restore_command, shell=True, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
                 # 检查是否有后台进程启动
-                time.sleep(20)  # 等待后台进程启动
+                time.sleep(5)  # 等待后台进程启动
                 verify_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} 'ps aux | grep -v grep | grep {command.split()[0]}'"
                 verify_result = subprocess.run(verify_command, shell=True, capture_output=True, text=True)
                 if verify_result.returncode == 0:
