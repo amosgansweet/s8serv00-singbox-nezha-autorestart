@@ -71,4 +71,4 @@ for server in servers:
         summary_message += f"\n无法恢复 {host} 上的 node 服务：\n{e.output.decode('utf-8')}"
 
 # 发送汇总消息到 Telegram
-send_telegram_message(telegram_bot_token, telegram_chat_id, summary_message)
+send_telegram_message(telegram_token, telegram_chat_id, summary_message)
