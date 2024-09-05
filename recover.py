@@ -58,40 +58,17 @@ for server in servers:
     port = server['port']
     username = server['username']
     password = server['password']
-    cron_commands = server.get('cron', default_restore_command)
-    
+    cron_command = server.get('cron', default_restore_command)
+
     print(f"连接到 {host}...")
 
-    # 如果 cron 命令是字符串，转换为列表
-    if isinstance(cron_commands, str):
-        cron_commands = [cron_commands]
-
-    # 拼接 cron 命令
-    cron_commands_str = ' && '.join(cron_commands)
-
-    # 执行恢复命令（假设使用 SSH 连接和密码认证）
-    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_commands_str}'"
-    print(f"执行命令: {restore_command}")  # 添加日志
+    # 执行恢复命令（这里假设使用 SSH 连接和密码认证）
+    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command}'"
     try:
-        result = subprocess.run(restore_command, shell=True, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            # 检查是否有后台进程启动
-            time.sleep(5)  # 等待后台进程启动
-            verify_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} 'ps aux | grep -v grep | grep {cron_commands[0].split()[0]}'"
-            verify_result = subprocess.run(verify_command, shell=True, capture_output=True, text=True)
-            if verify_result.returncode == 0:
-                summary_message += f"\n成功恢复 {host} 上的singbox and nezha服务：\n{verify_result.stdout}"
-            else:
-                summary_message += f"\n后台进程可能未启动 {host} 上的singbox and nezha服务。"
-        else:
-            summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{result.stderr}"
-    except subprocess.TimeoutExpired:
-        print(f"命令执行超时: {restore_command}")  # 处理超时
-        summary_message += f"\n命令执行超时 {host} 上的singbox and nezha服务。"
-    except Exception as e:
-        error_message = str(e)
-        print(f"未知错误: {error_message}")  # 捕获其他异常
-        summary_message += f"\n未能恢复 {host} 上的singbox and nezha服务：\n{error_message}"
+        output = subprocess.check_output(restore_command, shell=True, stderr=subprocess.STDOUT)
+        summary_message += f"\n成功恢复 {host} 上的 node 服务：\n{output.decode('utf-8')}"
+    except subprocess.CalledProcessError as e:
+        summary_message += f"\n无法恢复 {host} 上的 node 服务：\n{e.output.decode('utf-8')}"
 
 # 发送汇总消息到 Telegram
-send_telegram_message(telegram_token, telegram_chat_id, summary_message)
+send_telegram_message(telegram_bot_token, telegram_chat_id, summary_message)
